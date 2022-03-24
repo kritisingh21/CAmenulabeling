@@ -5,8 +5,11 @@ date: '2022-03-16'
 output: html_document
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+```{r setup, include=FALSE, echo=FALSE}
+require("knitr")
+opts_knit$set(root.dir = "H:/Menu Labeling in California")
+
+#code above is to not get working directory warning
 
 ```
 
@@ -43,9 +46,11 @@ library(data.table)
 
 library(ggplot2)
 
+#set root directory in setup chunk above
 #local directory - change to one drive directory later
-setwd("H:/Menu Labeling in California")
-getwd()
+#setwd("H:/Menu Labeling in California")
+#getwd()
+
 
 #set R directory to where .csv files are saved and loading all files in folder at 
 #we do not want files with "_occasion"
