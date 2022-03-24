@@ -5,8 +5,11 @@ date: '2022-03-16'
 output: html_document
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+```{r setup, include=FALSE, echo=FALSE}
+require("knitr")
+opts_knit$set(root.dir = "H:/Menu Labeling in California")
+
+#code above is to not get working directory warning
 
 ```
 
@@ -43,9 +46,11 @@ library(data.table)
 
 library(ggplot2)
 
+#set root directory in setup chunk above
 #local directory - change to one drive directory later
-setwd("H:/Menu Labeling in California")
-getwd()
+#setwd("H:/Menu Labeling in California")
+#getwd()
+
 
 #set R directory to where .csv files are saved and loading all files in folder at 
 #we do not want files with "_occasion"
@@ -113,6 +118,13 @@ CA_ds <- mergedDs %>%
 
 #create restaurant_id and arrange
 CA_ds$restaurant_id <- CA_ds %>% group_indices(address, concept, ownership, tract_num) 
+
+month_year_qtr <- time_day_dim %>%
+  select(DW_MONTH, YEARNO, QTRNO, MONTHNAME)
+
+CA_ds1 <- CA_ds %>% 
+  inner_join(unique(month_year_qtr), by = "DW_MONTH") 
+
             
 arrange(CA_ds, desc(DW_MONTH), DW_OCCASION) #this doesn't work how I would like for it to
 ```
