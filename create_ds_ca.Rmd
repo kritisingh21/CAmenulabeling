@@ -123,9 +123,10 @@ month_year_qtr <- time_day_dim %>%
   select(DW_MONTH, YEARNO, QTRNO, MONTHNAME)
 
 CA_ds1 <- CA_ds %>% 
-  inner_join(unique(month_year_qtr), by = "DW_MONTH") 
+  inner_join(unique(month_year_qtr), by = "DW_MONTH") %>%
+  mutate(ifelse())
 
             
-arrange(CA_ds, desc(DW_MONTH), DW_OCCASION) #this doesn't work how I would like for it to
+CA_ds1 <- arrange(CA_ds1, DW_MONTH, DW_OCCASION) #this doesn't work how I would like for it to
 ```
 
