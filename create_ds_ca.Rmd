@@ -1,9 +1,18 @@
 ---
-title: "create_ds_ca"
+  title: "create_ds_ca"
 author: "Kriti Singh"
 date: '2022-03-16'
 output: html_document
 ---
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
 
 ```{r setup, include=FALSE, echo=FALSE}
 require("knitr")
@@ -13,38 +22,20 @@ opts_knit$set(root.dir = "H:/Menu Labeling in California")
 
 ```
 
-## R Markdown
-
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r cars}
-summary(cars)
-```
-
-## Including Plots
-
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-plot(pressure)
-```
-
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
-
-
 ```{r}
-install.packages("tidyverse")
+#install.packages("tidyverse")
 library(tidyverse)
 
-install.packages("compare")
+#install.packages("compare")
 library(compare)
 
-install.packages("data.table")
+#install.packages("data.table")
 library(data.table)
 
 library(ggplot2)
+
+#install.packages("sqldf")
+library(sqldf)
 
 #set root directory in setup chunk above
 #local directory - change to one drive directory later
@@ -64,9 +55,9 @@ calorie_files #this lists all files in specified folder - 35 files (excluding "_
 
 calorie_filelist <- list()
 calorie_filelist <- lapply(calorie_files, function(x){
-                                ret <- read.csv(x)
-                                ret$origin <- x
-                                return(ret)})
+  ret <- read.csv(x)
+  ret$origin <- x
+  return(ret)})
 calorie_master <- rbindlist(calorie_filelist)
 
 #Erilia noted that 2007 Q1 (months 204-207) - calories and macro-nutrients were double counted but count (#orders) was not
@@ -74,19 +65,24 @@ calorie_master <- rbindlist(calorie_filelist)
 Q1_07 = "mean-calorie-w-mod/by-restaurant-occasion/mean-calorie_restid_2007_Q1.csv"
 
 calorie_master1 <- calorie_master %>%
-                      mutate(cal = ifelse(origin %in% c(Q1_07), cal/2, cal), 
-                             total_fat = ifelse(origin %in% c(Q1_07), total_fat/2, total_fat),
-                             carb = ifelse(origin %in% c(Q1_07), carb/2, carb),
-                             protein = ifelse(origin %in% c(Q1_07), protein/2, protein),
-                             sat_fat = ifelse(origin %in% c(Q1_07), sat_fat/2, sat_fat),
-                             sugar = ifelse(origin %in% c(Q1_07), sugar/2, sugar),
-                             fiber = ifelse(origin %in% c(Q1_07), fiber/2, fiber),
-                             sodium = ifelse(origin %in% c(Q1_07), sodium/2, sodium))
+  filter(DW_OCCASION != 0) %>% #there are 26 records that have DW_OCCASION = 0, we do not want to include this in the analysis dataset
+  mutate(cal = ifelse(origin %in% c(Q1_07), cal/2, cal), 
+         total_fat = ifelse(origin %in% c(Q1_07), total_fat/2, total_fat),
+         carb = ifelse(origin %in% c(Q1_07), carb/2, carb),
+         protein = ifelse(origin %in% c(Q1_07), protein/2, protein),
+         sat_fat = ifelse(origin %in% c(Q1_07), sat_fat/2, sat_fat),
+         sugar = ifelse(origin %in% c(Q1_07), sugar/2, sugar),
+         fiber = ifelse(origin %in% c(Q1_07), fiber/2, fiber),
+         sodium = ifelse(origin %in% c(Q1_07), sodium/2, sodium))
+
+#check no more records with DW_OCCASION = 0
+table(calorie_master1$DW_OCCASION)
+table(calorie_master$DW_OCCASION) #for comparison that DW_OCCASION = 1, 2, 3 have same frequencies
 
 #check - figure out how to check that the above code ran as we need it to
 #all.equal(calorie_master, calorie_master1)
 
-compare(calorie_master, calorie_master1)
+#compare(calorie_master, calorie_master1)
 
 
 #import analytic_restaurants file to merge with mean-calorie files
@@ -102,31 +98,50 @@ time_day_dim <- read.csv("time_day_dim.csv", stringsAsFactors = FALSE)
 mergedDs <- merge(analytic_restaurants, calorie_master1, by.x = c("restid"), by.y = c("DW_RESTID"))
 
 CA_ds <- mergedDs %>%
-            select(-restid) %>%
-            filter(state == "CA") %>%
-            group_by(DW_MONTH, DW_OCCASION, address, concept, ownership, tract_num) %>%
-            mutate(cal = sum(cal), 
-                      total_fat = sum(total_fat), 
-                      carb = sum(carb), 
-                      protein = sum(protein), 
-                      sat_fat = sum(sat_fat), 
-                      sugar = sum(sugar), 
-                      fiber = sum(fiber), 
-                      sodium = sum(sodium), 
-                      count = sum(count)) %>%
-            ungroup() 
+  select(-restid) %>%
+  filter(state == "CA") %>%
+  group_by(DW_MONTH, DW_OCCASION, address, concept, ownership, tract_num) %>%
+  mutate(cal = sum(cal), 
+         total_fat = sum(total_fat), 
+         carb = sum(carb), 
+         protein = sum(protein), 
+         sat_fat = sum(sat_fat), 
+         sugar = sum(sugar), 
+         fiber = sum(fiber), 
+         sodium = sum(sodium), 
+         count = sum(count)) %>%
+  ungroup() 
 
-#create restaurant_id and arrange
+#create restaurant_id
 CA_ds$restaurant_id <- CA_ds %>% group_indices(address, concept, ownership, tract_num) 
 
 month_year_qtr <- time_day_dim %>%
   select(DW_MONTH, YEARNO, QTRNO, MONTHNAME)
 
 CA_ds1 <- CA_ds %>% 
-  inner_join(unique(month_year_qtr), by = "DW_MONTH") %>%
-  mutate(ifelse())
+  inner_join(unique(month_year_qtr), by = "DW_MONTH") 
 
-            
-CA_ds1 <- arrange(CA_ds1, DW_MONTH, DW_OCCASION) #this doesn't work how I would like for it to
+#identify which month is January 2011 (when menu labeling was implemented in CA)
+sqldf('select distinct DW_MONTH from CA_ds1 where YEARNO = "Y2011" and MONTHNAME = "JANUARY"') #this returns DW_MONTH 253 (correct)
+
+#create post and treatment var
+#post is January 2011 onwards
+#treatment = 1 -> in-store orders (DW_OCASSION = 1,3)
+#treatment = 0 -> drive-thru      (DW_OCASSION = 2)
+CA_ds2 <- CA_ds1 %>%
+  mutate(post = ifelse(DW_MONTH >= 253, 1, 0), 
+         treatment = ifelse(DW_OCCASION == 2, 0, 1))
+
+#check that post var was created correctly
+sqldf('select distinct DW_MONTH, post from CA_ds2 order by DW_MONTH')
+sqldf('select distinct DW_OCCASION, treatment, drive_thru from CA_ds2 order by DW_OCCASION')
+
+sqldf('select DW_OCCASION, treatment, DW_MONTH, YEARNO, MONTHNAME, address from CA_ds2 where DW_OCCASION = 0 order by DW_MONTH')
+
+#export dataset to use for analysis and descriptive stats
+
+write.csv(CA_ds2, "H:/Menu Labeling in California/CAmenulabeling/ca_ds_223003.csv")
+
+
 ```
 
