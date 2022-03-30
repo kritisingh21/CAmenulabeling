@@ -1,0 +1,56 @@
+---
+title: "descriptive_stats"
+author: "Kriti Singh"
+date: '2022-03-30'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+```{r}
+
+setwd("H:/Menu Labeling in California/CAmenulabeling")
+getwd()
+
+library(tidyverse)
+library(ggplot2)
+
+#install.packages("sqldf")
+library(sqldf)
+
+
+df <- read.csv("ca_ds_223003.csv", stringsAsFactors = FALSE)
+
+```
+
+```{r}
+
+#check that the number of restaurants is around 500
+sqldf('select count(distinct restaurant_id) from CA_ds2') #575 restaurants
+
+ggplot(df, aes(x=DW_MONTH)) + geom_histogram()
+
+```
+
