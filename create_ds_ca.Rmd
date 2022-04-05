@@ -48,7 +48,7 @@ library(sqldf)
 calorie_dir = "mean-calorie-w-mod/by-restaurant-occasion"
 calorie_files = list.files(path = calorie_dir, pattern = "^mean-calorie_restid_2(.*)csv$", full.names = TRUE)
 
-#calorie_files #this lists all files in specified folder - 35 files (excluding "_occasion")
+calorie_files #this lists all files in specified folder - 35 files (excluding "_occasion")
 
 #read all files and append all in one step and add filepath for each observation
 #calorie_master <- bind_rows(lapply(calorie_files,read.csv)) - this does not create column with filepath
@@ -79,10 +79,6 @@ calorie_master1 <- calorie_master %>%
 table(calorie_master1$DW_OCCASION)
 table(calorie_master$DW_OCCASION) #for comparison that DW_OCCASION = 1, 2, 3 have same frequencies
 
-#check - figure out how to check that the above code ran as we need it to
-#all.equal(calorie_master, calorie_master1)
-
-#compare(calorie_master, calorie_master1)
 
 #aggregate on dw_restid, dw_month and dw_occasion, this should give us one record per restaurant ID
 
@@ -90,6 +86,7 @@ calorie_master2 <- calorie_master1 %>%
   group_by(DW_RESTID, DW_MONTH, DW_OCCASION) %>%
   summarise_at(vars(cal:count), sum) %>%
   ungroup() 
+
 
 #import analytic_restaurants file to merge with mean-calorie files
 analytic_restaurants <- read.csv("restaurants/analytic_restaurants.csv", stringsAsFactors = FALSE)
