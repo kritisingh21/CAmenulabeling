@@ -40,9 +40,57 @@ library(ggplot2)
 #install.packages("sqldf")
 library(sqldf)
 
+#install.packages("htmlTable")
+library(htmlTable)
 
 df <- read.csv("ca_ds_223003.csv", stringsAsFactors = FALSE)
 df <- df[,-1] #this removes the column with index numbers
+
+
+df1 <- df %>%
+  mutate(relative_month = DW_MONTH - 253, #create relative month var, where implementation month (253) is 0
+         occasion = case_when(DW_OCCASION == 1 ~ "Eat-In",
+                              DW_OCCASION == 2 ~ "Drive-Through",
+                              DW_OCCASION == 3 ~ "Takeout"),
+         cal_perorder = cal/count,
+         totalfat_perorder = total_fat/count,
+         carb_perorder = carb/count, 
+         protein_perorder = protein/count, 
+         satfat_perorder = sat_fat/count, 
+         sugar_perorder = sugar/count, 
+         fiber_perorder = fiber/count, 
+         sodium_perorder = sodium/count)
+
+#create datasets to append for descriptive stats table later
+df_overall_test <- df %>%
+  group_by(DW_MONTH, restaurant_id) %>%
+  summarise_at(vars(cal:count), sum) %>% 
+  ungroup() %>%
+  mutate(occasion = "Overall")
+
+df_append <- df1 %>%
+  select(DW_MONTH, occasion, cal:restaurant_id)
+
+#append
+df_table1 <- rbind(df_overall, df_append)
+
+df_table1 <- df_table1 %>%
+  mutate(relative_month = DW_MONTH - 253, #create relative month var, where implementation month (253) is 0
+         #create mean for all nutrient info
+         cal_perorder = cal/count,
+         totalfat_perorder = total_fat/count,
+         carb_perorder = carb/count, 
+         protein_perorder = protein/count, 
+         satfat_perorder = sat_fat/count, 
+         sugar_perorder = sugar/count, 
+         fiber_perorder = fiber/count, 
+         sodium_perorder = sodium/count)
+
+#check creation of relative_month var
+sqldf('select distinct DW_MONTH, relative_month, post from df1 order by DW_MONTH')
+
+#check creation of occasion var
+sqldf('select distinct DW_OCCASION, occasion from df1 order by DW_OCCASION')
 
 ```
 
@@ -55,9 +103,9 @@ sqldf('select count(distinct restaurant_id) from df')
 #Occasion = 2 -> # of restaurants: 947
 #Occasion = 1, 3 -> # of restaurants: 1055
 
-#filtered by baseline period (3-8 months before implementation) - table produced by code below looks correct
+#table produced by code below looks correct
 df %>%
-  filter(DW_MONTH %in% (245:250)) %>%
+  filter(DW_MONTH %in% (253)) %>%
   group_by(DW_OCCASION) %>%
   summarise(no_rest = n_distinct(restaurant_id))
 
@@ -72,30 +120,103 @@ df %>%
   group_by(restaurant_id) %>%
   summarise(month_count = n_distinct(DW_MONTH)) %>%
   ggplot(aes(x=month_count)) + 
-  geom_histogram(binwidth = 2) +
+  geom_histogram(bins = 2) +
   scale_x_continuous(breaks = seq(0, 120, by = 10))
 
 #histogram: occasion distribution
 df %>%
   group_by(restaurant_id) %>%
   ggplot(aes(x=DW_OCCASION)) + 
-  geom_histogram(binwidth = 0.5) +
+  geom_histogram(bins = 0.5) +
   scale_x_continuous(breaks = seq(0, 4, by = 1))
 
+
+#summary table at month 252 (month before implementation 253)
+table1_test <- df_table1 %>%
+  filter(DW_MONTH == 252) %>%
+  group_by(occasion) %>%
+  summarise_at(vars(cal_perorder:sodium_perorder), mean) %>%
+  txtRound(digits = 0)
+
+table1_test <- table1_test %>%
+  pivot_longer(cols = cal_perorder:sodium_perorder, names_to = "macronutrients", values_to = "mean") %>%
+  pivot_wider(names_from = occasion, values_from = mean)
+
+#change order of columns to have overall at the end
+table1_test <- table1_test[,c(1,2,3,5,4)]
+
+#turn into more presentable table
+htmlTable(
+    table1_test[,-1], # data.frame
+    cgroup = c("Order Type"), # Column group labels
+    n.cgroup = c(4), # Number of columns per group
+    rnames = table1_test[[1]], # Row labels
+    rowlabel = "", # Column header for row labels
+    css.cell = c("width: 50;","width:100;","width:100;","width:100;","width:100;")
+    )
+
+#Table: title, labels to plain english, drive-through, order type, 
+
 #histogram mean calories by occasion
-plot3 <- df %>%
-  select(restaurant_id, cal, DW_OCCASION) %>%
+
+df1 %>%
   group_by(restaurant_id, DW_OCCASION) %>%
-  mutate(mean_cal = mean(cal)) 
+  summarise(mean_cal = mean(cal)) %>%
+  ggplot(aes(x=mean_cal))+
+  geom_histogram(bins=100, position = "identity", alpha = 0.4)+
+  facet_grid(~DW_OCCASION)
 
-
-
-
-  ggplot(plot3, aes(x=mean_cal, color=DW_OCCASION)) +
-  geom_histogram(binwidth = 100000) +
-  scale_x_continuous(breaks = seq(400000, 15000000, by = 500000))
+df1 %>%
+  group_by(restaurant_id, DW_OCCASION) %>%
+  summarise(mean_cal = mean(cal)) %>%
+  ggplot(aes(x=mean_cal, color = as.factor(DW_OCCASION)))+
+  geom_histogram(aes(fill=as.factor(DW_OCCASION)), bins=100, position = "identity", alpha = 0.4)
   
-  summary(plot3$mean_cal)
-
+  df1 %>%
+    group_by(relative_month, occasion) %>%
+    summarise(mean_calperorder = mean(cal_perorder)) %>%
+    ggplot(aes(x=relative_month, y=mean_calperorder, color=occasion)) + 
+    geom_line() + geom_point() +
+    ylim(700, 1700) + 
+    scale_x_continuous(limits = c(-30, 60), breaks = seq(from=-30, to=60, by=5)) +
+                       #label = c("Jan 2010", "May 2010", "Oct 2010", "Jan 2011", "April 2011", "Sept 2011", "Jan 2012")) +
+    labs(x = "Relative Month", y = "Calories per Order (mean)", title = "Fig 1. Calories Per Order Over Time in California (Before and After Implementation)", color = "Order Type", caption = "0 is January 2011")+
+    theme(plot.caption = element_text(hjust = 0, face= "italic")) #Default is hjust=1
+  
+ sqldf('select distinct relative_month, MONTHNAME, YEARNO from df1 order by relative_month') 
+  
+  df1 %>%
+    group_by(relative_month, DW_OCCASION) %>%
+    summarise(mean_order = mean(count)) %>%
+    ggplot(aes(x=relative_month, y=mean_order, color=as.factor(DW_OCCASION))) + 
+    geom_point()
+  
+  df1 %>%
+    group_by(relative_month, occasion) %>%
+    summarise(mean_protein = mean(protein)) %>%
+    ggplot(aes(x=relative_month, y=mean_protein, color=occasion)) + 
+    geom_point()
+  
+  df1 %>%
+    group_by(relative_month, occasion) %>%
+    summarise(mean_sodium = mean(sodium)) %>%
+    ggplot(aes(x=relative_month, y=mean_sodium, color=occasion)) + 
+    geom_point()
+  
+    df1 %>%
+    group_by(relative_month, occasion) %>%
+    summarise(mean_fiber = mean(fiber)) %>%
+    ggplot(aes(x=relative_month, y=mean_fiber, color=occasion)) + 
+    geom_point()
+  
+  
 ```
-
+  df1 %>%
+    group_by(relative_month, occasion) %>%
+    summarise(mean_calperorder = mean(cal_perorder)) %>%
+    ggplot(aes(x=relative_month, y=mean_calperorder, color=occasion)) + 
+    geom_line() + geom_point() +
+    ylim(700, 1700) + 
+    scale_x_continuous(limits = c(-30, 60), breaks = seq(from=-30, to=60, by=5)) +
+    labs(x = "Relative Month", y = "Calories per Order (mean)", title = "Fig 1. Calories Per Order Over Time in California (Before and After Implementation)", color = "Order Type", caption = "0 is January 2011")+
+    theme(plot.caption = element_text(hjust = 0, face= "italic")) #Default is hjust=1
