@@ -16,8 +16,9 @@ Note that the `echo = FALSE` parameter was added to the code chunk to prevent pr
 
 ```{r setup, include=FALSE, echo=FALSE}
 require("knitr")
-opts_knit$set(root.dir = "H:/Menu Labeling in California")
+opts_knit$set(root.dir = "G:/CURRENT PROJECTS/Labeling R01/DATA/wu-data/tacobell/data")
 
+#G:\CURRENT PROJECTS\Labeling R01\DATA\wu-data\tacobell\data\from-bigpurple\mean-calorie-w-mod
 #code above is to not get working directory warning
 
 ```
@@ -37,21 +38,39 @@ library(ggplot2)
 #install.packages("sqldf")
 library(sqldf)
 
-#set root directory in setup chunk above
-#local directory - change to one drive directory later
-#setwd("H:/Menu Labeling in California")
-#getwd()
+#calorie_category_occasion
+cal_cat_occ_dir = "from-bigpurple/mean-calorie-w-mod/by-restaurant-category-occasion"
+cal_cat_occ_files = list.files(path = cal_cat_occ_dir, pattern = "^mean-calorie(.*)csv$", full.names = TRUE) 
+
+cal_cat_occ_filelist <- list()
+cal_cat_occ_filelist <- lapply(cal_cat_occ_files, function(x){
+  ret <- read.csv(x)
+  ret$origin <- x
+  return(ret)})
+cal_cat_occ_df <- rbindlist(cal_cat_occ_filelist)
 
 
-#set R directory to where .csv files are saved and loading all files in folder at 
+#calorie_restid_daypart -- as of 4/26/2022 - not full data (through Q42013)
+cal_daypart_dir = "from-bigpurple/mean-calorie-w-mod/by-restaurant-daypart-occasion"
+cal_daypart_files = list.files(path = cal_daypart_dir, pattern = "^mean-calorie(.*)csv$", full.names = TRUE) 
+
+#cal_daypart_files
+
+cal_daypart_filelist <- list()
+cal_daypart_filelist <- lapply(cal_daypart_files, function(x){
+  ret <- read.csv(x)
+  ret$origin <- x
+  return(ret)})
+cal_daypart_df <- rbindlist(cal_daypart_filelist)
+
+
+#calorie_byoccasion
 #we do not want files with "_occasion"
-calorie_dir = "mean-calorie-w-mod/by-restaurant-occasion"
+calorie_dir = "from-bigpurple/mean-calorie-w-mod/by-restaurant-occasion"
 calorie_files = list.files(path = calorie_dir, pattern = "^mean-calorie_restid_2(.*)csv$", full.names = TRUE)
 
-calorie_files #this lists all files in specified folder - 35 files (excluding "_occasion")
-
+#calorie_files #this lists all files in specified folder - 35 files (excluding "_occasion")
 #read all files and append all in one step and add filepath for each observation
-#calorie_master <- bind_rows(lapply(calorie_files,read.csv)) - this does not create column with filepath
 
 calorie_filelist <- list()
 calorie_filelist <- lapply(calorie_files, function(x){
@@ -92,7 +111,7 @@ calorie_master2 <- calorie_master1 %>%
 analytic_restaurants <- read.csv("restaurants/analytic_restaurants.csv", stringsAsFactors = FALSE)
 
 #import time_day_dim
-time_day_dim <- read.csv("time_day_dim.csv", stringsAsFactors = FALSE)
+time_day_dim <- read.csv("from-bigpurple/time_day_dim.csv", stringsAsFactors = FALSE)
 
 ```
 
