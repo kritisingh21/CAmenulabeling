@@ -43,9 +43,14 @@ library(sqldf)
 #install.packages("htmlTable")
 library(htmlTable)
 
-df <- read.csv("ca_ds_223003.csv", stringsAsFactors = FALSE)
-df <- df[,-1] #this removes the column with index numbers
+cal_df <- read.csv("ca_ds_220506.csv", stringsAsFactors = FALSE)
+cal_df <- cal_df[,-1] #this removes the column with index numbers
 
+daypart_df <- read.csv("ca_daypart_220505.csv", stringsAsFactors = FALSE)
+daypart_df <- daypart_df[,-1] #this removes the column with index numbers
+
+occ_df <- read.csv("ca_category_220506.csv", stringsAsFactors = FALSE)
+occ_df <- occ_df[,-1] #this removes the column with index numbers
 
 df1 <- df %>%
   mutate(relative_month = DW_MONTH - 253, #create relative month var, where implementation month (253) is 0
@@ -93,6 +98,202 @@ sqldf('select distinct DW_MONTH, relative_month, post from df1 order by DW_MONTH
 sqldf('select distinct DW_OCCASION, occasion from df1 order by DW_OCCASION')
 
 ```
+
+```{r}
+
+#DAYPART
+
+daypart_df1 <- daypart_df %>%
+  mutate(relative_month = DW_MONTH - 253, #create relative month var, where implementation month (253) is 0
+         occasion = case_when(DW_OCCASION == 1 ~ "Eat-In",
+                              DW_OCCASION == 2 ~ "Drive-Through",
+                              DW_OCCASION == 3 ~ "Takeout"),
+         daypart = case_when(DW_DAYPART == 1 ~ "Late Night",
+                             DW_DAYPART == 2 ~ "Breakfast",
+                             DW_DAYPART == 3 ~ "Lunch",
+                             DW_DAYPART == 4 ~ "Afternoon",
+                             DW_DAYPART == 5 ~ "Dinner",
+                             DW_DAYPART == 6 ~ "Evening"),
+         cal_perorder = cal/count,
+         totalfat_perorder = total_fat/count,
+         carb_perorder = carb/count, 
+         protein_perorder = protein/count, 
+         satfat_perorder = sat_fat/count, 
+         sugar_perorder = sugar/count, 
+         fiber_perorder = fiber/count, 
+         sodium_perorder = sodium/count,
+         totalrev_perorder = total_revenue/count)
+
+#create datasets to append for descriptive stats table later
+daypart_overall <- daypart_df %>%
+  group_by(DW_MONTH, restaurant_id) %>%
+  summarise_at(vars(cal:total_revenue), sum) %>% 
+  ungroup() %>%
+  mutate(occasion = "Overall",
+         daypart = "Full Day")
+
+daypart_append <- daypart_df1 %>%
+  select(DW_MONTH, occasion, daypart, cal:restaurant_id)
+
+#append
+daypart_table1 <- rbind(daypart_overall, daypart_append)
+
+daypart_table1 <- daypart_table1 %>%
+  mutate(relative_month = DW_MONTH - 253, #create relative month var, where implementation month (253) is 0
+         #create mean for all nutrient info
+         cal_perorder = cal/count,
+         totalfat_perorder = total_fat/count,
+         carb_perorder = carb/count, 
+         protein_perorder = protein/count, 
+         satfat_perorder = sat_fat/count, 
+         sugar_perorder = sugar/count, 
+         fiber_perorder = fiber/count, 
+         sodium_perorder = sodium/count,
+         totalrev_perorder = total_revenue/count)
+
+
+#descriptive stats for into presentation to beth and marie
+
+#summary table at month 252 (month before implementation 253)
+table1_dp <- daypart_table1 %>%
+  filter(DW_MONTH == 252) %>%
+  group_by(daypart) %>%
+  summarise_at(vars(cal_perorder:sodium_perorder), mean) %>%
+  txtRound(digits = 0)
+
+table1_dp <- table1_dp %>%
+  pivot_longer(cols = cal_perorder:sodium_perorder, names_to = "macronutrients", values_to = "mean") %>%
+  pivot_wider(names_from = daypart, values_from = mean)
+
+#change order of columns to have overall at the end
+table1_dp <- table1_dp[,c(1,2,3,4,5,7,8,6)]
+
+#turn into more presentable table
+htmlTable(
+    table1_dp[,-1], # data.frame
+    cgroup = c("Time of Day"), # Column group labels
+    n.cgroup = c(7), # Number of columns per group
+    rnames = table1_dp[[1]], # Row labels
+    rowlabel = "", # Column header for row labels
+    css.cell = c("width: 50;","width:100;","width:100;","width:100;","width:100;","width:100;","width:100;","width:100;")
+)
+
+  daypart_df1 %>%
+    group_by(relative_month, occasion, daypart) %>%
+    summarise(mean_calperorder = mean(cal_perorder)) %>%
+    ggplot(aes(x=relative_month, y=mean_calperorder, color=daypart)) + 
+    geom_line() + geom_point() +
+    ylim(500, 1700) + 
+    scale_color_manual(values=c("#99CC00","#000000","#FF00CC","#0000FF","#FF3333","#FF9933")) +
+    scale_x_continuous(limits = c(-30, 60), breaks = seq(from=-30, to=60, by=5)) +
+    labs(x = "Relative Month", y = "Calories per Order (mean)", title = "Fig 2. Calories Per Order Over Time in California (Before and After Implementation) - Time of Day", color = "Time of Day", caption = "0 is January 2011")+
+    theme(plot.caption = element_text(hjust = 0, face= "italic")) + #Default is hjust=1
+    facet_wrap(~ occasion)
+
+```
+
+
+
+```{r}
+
+#CATEGORY
+
+occ_df1 <- occ_df %>%
+  mutate(relative_month = DW_MONTH - 253, #create relative month var, where implementation month (253) is 0
+         occasion = case_when(DW_OCCASION == 1 ~ "Eat-In",
+                              DW_OCCASION == 2 ~ "Drive-Through",
+                              DW_OCCASION == 3 ~ "Takeout"),
+         category = case_when(DW_CATEGORY == 1 ~ "Beverage",
+                              DW_CATEGORY == 2 ~ "Burrito",
+                              DW_CATEGORY == 3 ~ "Dessert",
+                              DW_CATEGORY == 4 ~ "Other (Entree)",
+                              DW_CATEGORY == 5 ~ "Salad",
+                              DW_CATEGORY == 6 ~ "Side",
+                              DW_CATEGORY == 7 ~ "Substitution",
+                              DW_CATEGORY == 8 ~ "Taco",
+                              DW_CATEGORY == 9 ~ "Other"),
+         cal_perorder = cal/count,
+         totalfat_perorder = total_fat/count,
+         carb_perorder = carb/count, 
+         protein_perorder = protein/count, 
+         satfat_perorder = sat_fat/count, 
+         sugar_perorder = sugar/count, 
+         fiber_perorder = fiber/count, 
+         sodium_perorder = sodium/count,
+         totalrev_perorder = total_revenue/count)
+
+#create datasets to append for descriptive stats table later
+cat_overall <- occ_df %>%
+  group_by(DW_MONTH, restaurant_id) %>%
+  summarise_at(vars(cal:total_revenue), sum) %>% 
+  ungroup() %>%
+  mutate(occasion = "Overall",
+         category = "All Foods")
+
+cat_append <- occ_df1 %>%
+  select(DW_MONTH, occasion, category, cal:restaurant_id)
+
+#append
+cat_table1 <- rbind(cat_overall, cat_append)
+
+cat_table1 <- cat_table1 %>%
+  mutate(relative_month = DW_MONTH - 253, #create relative month var, where implementation month (253) is 0
+         #create mean for all nutrient info
+         cal_perorder = cal/count,
+         totalfat_perorder = total_fat/count,
+         carb_perorder = carb/count, 
+         protein_perorder = protein/count, 
+         satfat_perorder = sat_fat/count, 
+         sugar_perorder = sugar/count, 
+         fiber_perorder = fiber/count, 
+         sodium_perorder = sodium/count,
+         totalrev_perorder = total_revenue/count)
+
+
+#descriptive stats for into presentation to beth and marie
+
+#food categories we are most interested in: beverage, burrito, dessert, other entrée, salad and taco
+
+#summary table at month 252 (month before implementation 253)
+table1_cat <- cat_table1 %>%
+  filter(grepl("Burrito|Taco|Dessert|Beverage|Other (Entree)|Salad|All Foods",category)) %>%
+  filter(DW_MONTH == 252) %>%
+  group_by(category) %>%
+  summarise_at(vars(cal_perorder:sodium_perorder), mean) %>%
+  txtRound(digits = 0)
+
+table1_cat <- table1_cat %>%
+  pivot_longer(cols = cal_perorder:sodium_perorder, names_to = "macronutrients", values_to = "mean") %>%
+  pivot_wider(names_from = category, values_from = mean)
+
+#change order of columns to have overall at the end
+table1_cat <- table1_cat[,c(1,3,4,5,6,7,2)]
+
+#turn into more presentable table
+htmlTable(
+    table1_cat[,-1], # data.frame
+    cgroup = c("Food Category"), # Column group labels
+    n.cgroup = c(6), # Number of columns per group
+    rnames = table1_cat[[1]], # Row labels
+    rowlabel = "", # Column header for row labels
+    css.cell = c("width:60;","width:80;","width:80;","width:70;","width:70;","width:70;","width:80;")
+)
+
+
+  occ_df1 %>%
+    filter(grepl("Burrito|Taco|Dessert|Beverage|Other (Entree)|Salad",category)) %>%
+    group_by(relative_month, occasion, category) %>%
+    summarise(mean_calperorder = mean(cal_perorder)) %>%
+    ggplot(aes(x=relative_month, y=mean_calperorder, color=category)) + 
+    geom_line() + geom_point() +
+    #ylim(700, 900) + 
+    scale_x_continuous(limits = c(-30, 60), breaks = seq(from=-30, to=60, by=5)) +
+    labs(x = "Relative Month", y = "Calories per Order (mean)", title = "Fig 3. Calories Per Order Over Time in California (Before and After Implementation) - Food Categories", color = "Food Category", caption = "0 is January 2011")+
+    theme(plot.caption = element_text(hjust = 0, face= "italic")) + #Default is hjust=1
+    facet_wrap(~ occasion)
+
+```
+
 
 ```{r}
 
@@ -211,12 +412,7 @@ df1 %>%
   
   
 ```
-  df1 %>%
-    group_by(relative_month, occasion) %>%
-    summarise(mean_calperorder = mean(cal_perorder)) %>%
-    ggplot(aes(x=relative_month, y=mean_calperorder, color=occasion)) + 
-    geom_line() + geom_point() +
-    ylim(700, 1700) + 
-    scale_x_continuous(limits = c(-30, 60), breaks = seq(from=-30, to=60, by=5)) +
-    labs(x = "Relative Month", y = "Calories per Order (mean)", title = "Fig 1. Calories Per Order Over Time in California (Before and After Implementation)", color = "Order Type", caption = "0 is January 2011")+
-    theme(plot.caption = element_text(hjust = 0, face= "italic")) #Default is hjust=1
+```{r}
+
+```
+
