@@ -50,7 +50,8 @@ cal_cat_occ_filelist <- lapply(cal_cat_occ_files, function(x){
 cal_cat_occ_df <- rbindlist(cal_cat_occ_filelist)
 
 
-#calorie_restid_daypart -- as of 4/26/2022 - not full data (through Q42013)
+
+#calorie_restid_daypart 
 cal_daypart_dir = "from-bigpurple/mean-calorie-w-mod/by-restaurant-daypart-occasion"
 cal_daypart_files = list.files(path = cal_daypart_dir, pattern = "^mean-calorie(.*)csv$", full.names = TRUE) 
 
@@ -63,6 +64,7 @@ cal_daypart_filelist <- lapply(cal_daypart_files, function(x){
   return(ret)})
 cal_daypart_df <- rbindlist(cal_daypart_filelist)
 
+#write.csv(cal_daypart_df, "H:/Menu Labeling in California/CAmenulabeling/raw_cal_daypart_df.csv")
 
 #calorie_byoccasion
 #we do not want files with "_occasion"
@@ -79,20 +81,33 @@ calorie_filelist <- lapply(calorie_files, function(x){
   return(ret)})
 calorie_master <- rbindlist(calorie_filelist)
 
+
+#import analytic_restaurants file to merge with mean-calorie files
+analytic_restaurants <- read.csv("restaurants/analytic_restaurants.csv", stringsAsFactors = FALSE)
+
+#import time_day_dim
+time_day_dim <- read.csv("from-bigpurple/time_day_dim.csv", stringsAsFactors = FALSE)
+
+```
+
+```{r}
+
+#calorie_master processing
+
 #Erilia noted that 2007 Q1 (months 204-207) - calories and macro-nutrients were double counted but count (#orders) was not
 
-Q1_07 = "mean-calorie-w-mod/by-restaurant-occasion/mean-calorie_restid_2007_Q1.csv"
+Q1_07_master = "from-bigpurple/mean-calorie-w-mod/by-restaurant-occasion/mean-calorie_restid_2007_Q1.csv"
 
 calorie_master1 <- calorie_master %>%
   filter(DW_OCCASION != 0) %>% #there are 26 records that have DW_OCCASION = 0, we do not want to include this in the analysis dataset
-  mutate(cal = ifelse(origin %in% c(Q1_07), cal/2, cal), 
-         total_fat = ifelse(origin %in% c(Q1_07), total_fat/2, total_fat),
-         carb = ifelse(origin %in% c(Q1_07), carb/2, carb),
-         protein = ifelse(origin %in% c(Q1_07), protein/2, protein),
-         sat_fat = ifelse(origin %in% c(Q1_07), sat_fat/2, sat_fat),
-         sugar = ifelse(origin %in% c(Q1_07), sugar/2, sugar),
-         fiber = ifelse(origin %in% c(Q1_07), fiber/2, fiber),
-         sodium = ifelse(origin %in% c(Q1_07), sodium/2, sodium))
+  mutate(cal = ifelse(origin %in% c(Q1_07_master), cal/2, cal), 
+         total_fat = ifelse(origin %in% c(Q1_07_master), total_fat/2, total_fat),
+         carb = ifelse(origin %in% c(Q1_07_master), carb/2, carb),
+         protein = ifelse(origin %in% c(Q1_07_master), protein/2, protein),
+         sat_fat = ifelse(origin %in% c(Q1_07_master), sat_fat/2, sat_fat),
+         sugar = ifelse(origin %in% c(Q1_07_master), sugar/2, sugar),
+         fiber = ifelse(origin %in% c(Q1_07_master), fiber/2, fiber),
+         sodium = ifelse(origin %in% c(Q1_07_master), sodium/2, sodium))
 
 #check no more records with DW_OCCASION = 0
 table(calorie_master1$DW_OCCASION)
@@ -107,15 +122,6 @@ calorie_master2 <- calorie_master1 %>%
   ungroup() 
 
 
-#import analytic_restaurants file to merge with mean-calorie files
-analytic_restaurants <- read.csv("restaurants/analytic_restaurants.csv", stringsAsFactors = FALSE)
-
-#import time_day_dim
-time_day_dim <- read.csv("from-bigpurple/time_day_dim.csv", stringsAsFactors = FALSE)
-
-```
-
-```{r}
 #merge calorie_master and analytic_restaurants
 mergedDs <- merge(analytic_restaurants, calorie_master2, by.x = c("restid"), by.y = c("DW_RESTID"))
 
@@ -162,7 +168,168 @@ sqldf('select distinct DW_OCCASION, treatment, drive_thru from CA_ds2 order by D
 
 #export dataset to use for analysis and descriptive stats
 
-write.csv(CA_ds2, "H:/Menu Labeling in California/CAmenulabeling/ca_ds_223003.csv")
+write.csv(CA_ds2, "H:/Menu Labeling in California/CAmenulabeling/ca_ds_220506.csv")
+
+
+```
+
+```{r}
+
+#do the same processing for day_part and cat_occ datasets as calorie_master
+
+#day_part
+
+Q1_07_daypart = "from-bigpurple/mean-calorie-w-mod/by-restaurant-daypart-occasion/mean-calorie_restid_daypart_2007_Q1.csv"
+
+cal_daypart_df1 <- cal_daypart_df %>%
+  filter(DW_OCCASION != 0) %>% #there are 26 records that have DW_OCCASION = 0, we do not want to include this in the analysis dataset
+  mutate(cal = ifelse(origin %in% c(Q1_07_daypart), cal/2, cal), 
+         total_fat = ifelse(origin %in% c(Q1_07_daypart), total_fat/2, total_fat),
+         carb = ifelse(origin %in% c(Q1_07_daypart), carb/2, carb),
+         protein = ifelse(origin %in% c(Q1_07_daypart), protein/2, protein),
+         sat_fat = ifelse(origin %in% c(Q1_07_daypart), sat_fat/2, sat_fat),
+         sugar = ifelse(origin %in% c(Q1_07_daypart), sugar/2, sugar),
+         fiber = ifelse(origin %in% c(Q1_07_daypart), fiber/2, fiber),
+         sodium = ifelse(origin %in% c(Q1_07_daypart), sodium/2, sodium))
+
+#check no more records with DW_OCCASION = 0
+table(cal_daypart_df1$DW_OCCASION)
+table(cal_daypart_df$DW_OCCASION) #for comparison that DW_OCCASION = 1, 2, 3 have same frequencies
+
+
+#aggregate on dw_restid, dw_month and dw_occasion, this should give us one record per restaurant ID
+
+cal_daypart_df2 <- cal_daypart_df1 %>%
+  group_by(DW_RESTID, DW_MONTH, DW_OCCASION, DW_DAYPART) %>%
+  summarise_at(vars(cal:total_revenue), sum) %>%
+  ungroup() 
+
+
+#merge calorie_master and analytic_restaurants
+daypart_merged <- merge(analytic_restaurants, cal_daypart_df2, by.x = c("restid"), by.y = c("DW_RESTID"))
+
+CA_daypart <- daypart_merged %>%
+  select(-restid) %>%
+  filter(state == "CA") %>%
+  group_by(DW_MONTH, DW_OCCASION, DW_DAYPART, address, concept, ownership, tract_num) %>%
+  mutate(cal = sum(cal), 
+         total_fat = sum(total_fat), 
+         carb = sum(carb), 
+         protein = sum(protein), 
+         sat_fat = sum(sat_fat), 
+         sugar = sum(sugar), 
+         fiber = sum(fiber), 
+         sodium = sum(sodium), 
+         count = sum(count),
+         total_revenue = sum(total_revenue)) %>%
+  ungroup() 
+
+#create restaurant_id
+CA_daypart$restaurant_id <- CA_daypart %>% group_indices(address, concept, ownership, tract_num) 
+
+month_year_qtr <- time_day_dim %>%
+  select(DW_MONTH, YEARNO, QTRNO, MONTHNAME)
+
+CA_daypart1 <- CA_daypart %>% 
+  inner_join(unique(month_year_qtr), by = "DW_MONTH") 
+
+#identify which month is January 2011 (when menu labeling was implemented in CA)
+sqldf('select distinct DW_MONTH from CA_ds1 where YEARNO = "Y2011" and MONTHNAME = "JANUARY"') #this returns DW_MONTH 253 (correct)
+
+#create post and treatment var
+#post is January 2011 onwards
+#treatment = 1 -> in-store orders (DW_OCASSION = 1,3)
+#treatment = 0 -> drive-thru      (DW_OCASSION = 2)
+CA_daypart2 <- CA_daypart1 %>%
+  mutate(post = ifelse(DW_MONTH >= 253, 1, 0), 
+         treatment = ifelse(DW_OCCASION == 2, 0, 1))
+
+#check that post var was created correctly
+sqldf('select distinct DW_MONTH, post from CA_daypart2 order by DW_MONTH')
+sqldf('select distinct DW_OCCASION, treatment, drive_thru from CA_daypart2 order by DW_OCCASION')
+
+
+#export dataset to use for analysis and descriptive stats
+
+write.csv(CA_daypart2, "H:/Menu Labeling in California/CAmenulabeling/ca_daypart_220505.csv")
+
+```
+
+```{r}
+
+#category_occasion
+
+Q1_07_catocc = "from-bigpurple/mean-calorie-w-mod/by-restaurant-category-occasion/mean-calorie-by-category-occasion_2007_Q1.csv"
+
+cal_cat_occ1 <- cal_cat_occ_df %>%
+  filter(DW_OCCASION != 0) %>% #there are 26 records that have DW_OCCASION = 0, we do not want to include this in the analysis dataset
+  mutate(cal = ifelse(origin %in% c(Q1_07_catocc), cal/2, cal), 
+         total_fat = ifelse(origin %in% c(Q1_07_catocc), total_fat/2, total_fat),
+         carb = ifelse(origin %in% c(Q1_07_catocc), carb/2, carb),
+         protein = ifelse(origin %in% c(Q1_07_catocc), protein/2, protein),
+         sat_fat = ifelse(origin %in% c(Q1_07_catocc), sat_fat/2, sat_fat),
+         sugar = ifelse(origin %in% c(Q1_07_catocc), sugar/2, sugar),
+         fiber = ifelse(origin %in% c(Q1_07_catocc), fiber/2, fiber),
+         sodium = ifelse(origin %in% c(Q1_07_catocc), sodium/2, sodium))
+
+#check no more records with DW_OCCASION = 0
+table(cal_cat_occ1$DW_OCCASION)
+table(cal_cat_occ_df$DW_OCCASION) #for comparison that DW_OCCASION = 1, 2, 3 have same frequencies
+
+
+#aggregate on dw_restid, dw_month and dw_occasion, this should give us one record per restaurant ID
+
+cal_cat_occ2 <- cal_cat_occ1 %>%
+  group_by(DW_RESTID, DW_MONTH, DW_OCCASION, DW_CATEGORY) %>%
+  summarise_at(vars(cal:total_revenue), sum) %>%
+  ungroup() 
+
+
+#merge calorie_master and analytic_restaurants
+category_merged <- merge(analytic_restaurants, cal_cat_occ2, by.x = c("restid"), by.y = c("DW_RESTID"))
+
+CA_category <- category_merged %>%
+  select(-restid) %>%
+  filter(state == "CA") %>%
+  group_by(DW_MONTH, DW_OCCASION, DW_CATEGORY, address, concept, ownership, tract_num) %>%
+  mutate(cal = sum(cal), 
+         total_fat = sum(total_fat), 
+         carb = sum(carb), 
+         protein = sum(protein), 
+         sat_fat = sum(sat_fat), 
+         sugar = sum(sugar), 
+         fiber = sum(fiber), 
+         sodium = sum(sodium), 
+         count = sum(count),
+         total_revenue = sum(total_revenue)) %>%
+  ungroup() 
+
+#create restaurant_id
+CA_category$restaurant_id <- CA_category %>% group_indices(address, concept, ownership, tract_num) 
+
+month_year_qtr <- time_day_dim %>%
+  select(DW_MONTH, YEARNO, QTRNO, MONTHNAME)
+
+CA_category1 <- CA_category %>% 
+  inner_join(unique(month_year_qtr), by = "DW_MONTH") 
+
+
+#create post and treatment var
+#post is January 2011 onwards
+#treatment = 1 -> in-store orders (DW_OCASSION = 1,3)
+#treatment = 0 -> drive-thru      (DW_OCASSION = 2)
+CA_category2 <- CA_category1 %>%
+  mutate(post = ifelse(DW_MONTH >= 253, 1, 0), 
+         treatment = ifelse(DW_OCCASION == 2, 0, 1))
+
+#check that post var was created correctly
+sqldf('select distinct DW_MONTH, post from CA_category2 order by DW_MONTH')
+sqldf('select distinct DW_OCCASION, treatment, drive_thru from CA_category2 order by DW_OCCASION')
+
+#export dataset to use for analysis and descriptive stats
+
+write.csv(CA_category2, "H:/Menu Labeling in California/CAmenulabeling/ca_category_220506.csv")
+
 
 
 ```
